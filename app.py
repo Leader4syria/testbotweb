@@ -11,9 +11,9 @@ import os
 # استبدل YOUR_BOT_TOKEN_HERE بالتوكن الخاص بك الذي تحصل عليه من BotFather.
 # من الأفضل استخدام متغير بيئة (Environment Variable) لتخزين التوكن.
 # Render ستسمح لك بضبط هذا المتغير.
-TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7834007989:AAHuV-pMgYTC2fv3x56_4_UT42qVB7VLMgU") # تم تحديث التوكن!
+TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "7834007989:AAHuV-pMgYTC2fv3x56_4_UT42qVB7VLMgU") # التوكن المضمّن
 if TOKEN == "7834007989:AAHuV-pMgYTC2fv3x56_4_UT42qVB7VLMgU":
-    logging.warning("TELEGRAM_BOT_TOKEN لم يتم ضبطه كمتغير بيئة. يرجى ضبطه في Render (إذا لم يكن هذا التوكن حساسًا وترغب في تضمينه مباشرةً).")
+    logging.warning("TELEGRAM_BOT_TOKEN لم يتم ضبطه كمتغير بيئة في Render. يوصى بضبطه هناك.")
 # ***************************************
 
 # *************** هام جداً ***************
@@ -104,18 +104,32 @@ def run_telegram_bot():
     logger.info("بدء تشغيل بوت التليجرام...")
     application.run_polling(allowed_updates=Update.ALL_TYPES)
 
+
+# ************************************************************
+# التغييرات الرئيسية هنا:
+# 1. سيتم استدعاء `init_db()` عند بدء تشغيل أي من العمليتين (web أو worker).
+# 2. عندما يتم تشغيل الملف كـ `worker` (أي عن طريق `python bot.py` من Procfile)،
+#    سيتم استدعاء `run_telegram_bot()` مباشرة.
+# 3. إزالة الكتلة `if __name__ == "__main__":` التي كانت مخصصة للاختبار المحلي فقط.
+# ************************************************************
+
 # تهيئة قاعدة البيانات عند بدء التشغيل
+# هذا السطر سيكون خارج أي دالة، لذا سيتم تشغيله عند استيراد الملف أو تشغيله.
 init_db()
 
-# هذا الجزء من الكود لن يتم تشغيله مباشرةً كما هو في Render،
-# حيث سيقوم Render بتشغيل "web" و "worker" بشكل منفصل بناءً على ملف Procfile.
-# ولكن، دالة `init_db()` في الأعلى ستضمن تهيئة القاعدة عند بدء أي من العمليتين.
-if __name__ == "__main__":
-    # هذا الجزء مخصص للاختبار المحلي فقط!
-    # لا تستخدم هذا في الإنتاج على Render.
-    # في Render، سيتم تشغيل البوت والـ Flask API كعمليات منفصلة.
-    logger.warning("تشغيل محلي: سيبدأ البوت وخادم Flask. للتوزيع، استخدم Render Procfile.")
-    from threading import Thread
-    bot_thread = Thread(target=run_telegram_bot)
-    bot_thread.start()
-    app.run(host='0.0.0.0', port=5000)
+# هذا الجزء سيتم تنفيذه فقط عندما يتم تشغيل الملف بواسطة عملية الـ worker
+# (أي عندما يكون `python bot.py` هو أمر البدء).
+# يجب أن يتأكد هذا الجزء من أن البوت يبدأ بالعمل.
+try:
+    # لتشغيل البوت كـ worker
+    # سيتم تشغيل هذه الدالة مباشرة عندما يتم استدعاء "python bot.py"
+    # في عملية الـ worker التي تحددها في Procfile.
+    if os.getenv("RENDER_SERVICE_TYPE") == "worker": # محاولة اكتشاف بيئة Render worker
+        run_telegram_bot()
+    else:
+        # إذا لم يكن worker (على الأرجح web service)، فلا تفعل شيئًا هنا.
+        # Gunicorn سيتولى تشغيل تطبيق Flask.
+        logger.info("يبدو أن هذا ليس worker. لم يتم تشغيل بوت التليجرام.")
+except Exception as e:
+    logger.error(f"حدث خطأ في بدء تشغيل البوت: {e}")
+
