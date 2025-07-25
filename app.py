@@ -3,6 +3,7 @@ import logging
 import telebot
 from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from flask import Flask, jsonify
+from flask_cors import CORS # تم إضافة هذا الاستيراد لدعم CORS
 import sqlite3
 import os
 
@@ -69,6 +70,7 @@ def get_services():
 
 # --- إعداد تطبيق Flask لـ API ---
 app = Flask(__name__)
+CORS(app) # تم تهيئة CORS على تطبيق Flask للسماح بطلبات من نطاقات مختلفة
 
 @app.route('/api/services', methods=['GET'])
 def api_services():
@@ -120,4 +122,3 @@ try:
     bot.polling(none_stop=True)
 except Exception as e:
     logger.error(f"حدث خطأ فادح في بدء تشغيل البوت: {e}", exc_info=True) # exc_info=True لطباعة traceback الكامل
-
