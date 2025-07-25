@@ -1,12 +1,10 @@
 # -*- coding: utf-8 -*-
 import logging
-from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
-from telegram.ext import Application, CommandHandler, ContextTypes
+import telebot
+from telebot.types import InlineKeyboardButton, InlineKeyboardMarkup, WebAppInfo
 from flask import Flask, jsonify
 import sqlite3
 import os
-
-# لا حاجة لـ 'threading' هنا لأن Render ستدير الـ web و الـ worker بشكل منفصل.
 
 # *************** هام جداً ***************
 # استبدل YOUR_BOT_TOKEN_HERE بالتوكن الخاص بك الذي تحصل عليه من BotFather.
@@ -27,7 +25,7 @@ WEB_APP_URL = "https://leader4syria.github.io/testbotweb/" # هذا هو الر�
 logging.basicConfig(
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s', level=logging.INFO
 )
-logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("httpx").setLevel(logging.WARNING) # httpx تستخدمها Flask أو مكتبات أخرى
 logger = logging.getLogger(__name__)
 
 # --- إعداد قاعدة البيانات SQLite ---
@@ -69,24 +67,6 @@ def get_services():
     conn.close()
     return services
 
-# --- وظائف البوت (Telegram Bot Handlers) ---
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    """إرسال رسالة ترحيبية وزر لفتح تطبيق الويب."""
-    # إنشاء زر يفتح Web App
-    keyboard = [[
-        InlineKeyboardButton(
-            "افتح خدماتنا",
-            web_app=WebAppInfo(url=WEB_APP_URL)
-        )
-    ]]
-    reply_markup = InlineKeyboardMarkup(keyboard)
-
-    await update.message.reply_text(
-        "مرحباً بك في بوت الخدمات لدينا! 👋\nاضغط على الزر أدناه لاستكشاف الخدمات المتاحة:",
-        reply_markup=reply_markup
-    )
-    logger.info(f"تم إرسال رسالة الترحيب إلى {update.effective_user.id}")
-
 # --- إعداد تطبيق Flask لـ API ---
 app = Flask(__name__)
 
@@ -98,22 +78,46 @@ def api_services():
     return jsonify(services)
 
 # ************************************************************
-# التغييرات الرئيسية هنا:
-# 1. إزالة دالة `run_telegram_bot()`.
-# 2. تشغيل البوت مباشرةً عند بدء عملية الـ Worker.
+# التغييرات الرئيسية لـ Telebot
+# ************************************************************
+
+# تهيئة بوت Telebot
+bot = telebot.TeleBot(TOKEN)
+
+# وظائف البوت (Telegram Bot Handlers) باستخدام Telebot
+@bot.message_handler(commands=['start'])
+def send_welcome(message):
+    """إرسال رسالة ترحيبية وزر لفتح تطبيق الويب."""
+    # إنشاء زر يفتح Web App
+    keyboard = InlineKeyboardMarkup()
+    button = InlineKeyboardButton(
+        text="افتح خدماتنا",
+        web_app=WebAppInfo(url=WEB_APP_URL)
+    )
+    keyboard.add(button)
+
+    bot.send_message(
+        message.chat.id,
+        "مرحباً بك في بوت الخدمات لدينا! 👋\nاضغط على الزر أدناه لاستكشاف الخدمات المتاحة:",
+        reply_markup=keyboard
+    )
+    logger.info(f"تم إرسال رسالة الترحيب إلى {message.chat.id}")
+
+
+# ************************************************************
+# جزء تشغيل البوت (Worker)
 # ************************************************************
 
 # تهيئة قاعدة البيانات عند بدء التشغيل
-# هذا السطر سيكون خارج أي دالة، لذا سيتم تشغيله عند استيراد الملف أو تشغيله.
 init_db()
 
 # هذا الجزء سيتم تنفيذه مباشرة عندما يتم تشغيل الملف بواسطة عملية الـ worker
 # (أي عندما يكون `python bot.py` هو أمر البدء).
 # يجب أن يتأكد هذا الجزء من أن البوت يبدأ بالعمل.
 try:
-    logger.info("بدء تشغيل بوت التليجرام...")
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
+    logger.info("بدء تشغيل بوت التليجرام (باستخدام Telebot)...")
+    # هذا الأمر يشغل البوت في وضع الاستطلاع (polling)
+    bot.polling(none_stop=True)
 except Exception as e:
     logger.error(f"حدث خطأ فادح في بدء تشغيل البوت: {e}", exc_info=True) # exc_info=True لطباعة traceback الكامل
+
