@@ -1,0 +1,181 @@
+<!DOCTYPE html>
+<html lang="ar">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>خدمات بوت التليجرام</title>
+    <!-- تضمين Tailwind CSS CDN لتصميم سريع وجميل -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- الخط الافتراضي Inter -->
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6; /* لون خلفية فاتح */
+            display: flex;
+            justify-content: center;
+            align-items: flex-start; /* لتبدأ المحتويات من الأعلى */
+            min-height: 100vh;
+            padding: 2rem;
+            box-sizing: border-box;
+        }
+        .container {
+            max-width: 600px;
+            width: 100%;
+            background-color: #ffffff; /* خلفية بيضاء للبطاقة الرئيسية */
+            border-radius: 1.5rem; /* حواف مستديرة أكثر */
+            box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1); /* ظل خفيف */
+            padding: 2.5rem;
+        }
+        .service-card {
+            background-color: #f9fafb; /* لون خلفية خفيف لبطاقات الخدمات */
+            border-radius: 0.75rem;
+            padding: 1.25rem;
+            margin-bottom: 1rem;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        .service-card:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 6px 15px rgba(0, 0, 0, 0.1);
+        }
+        .loading-spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-top: 4px solid #3b82f6; /* لون أزرق */
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        /* لتناسب الشاشات الصغيرة */
+        @media (max-width: 640px) {
+            .container {
+                padding: 1.5rem;
+                margin-top: 1rem; /* مسافة من الأعلى للهواتف */
+            }
+            body {
+                padding: 1rem;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container flex flex-col items-center">
+        <h1 class="text-3xl font-bold text-gray-800 mb-6 text-center">خدماتنا المتاحة</h1>
+        <p class="text-gray-600 mb-8 text-lg text-center">استكشف الخدمات التي نقدمها من خلال بوت التليجرام.</p>
+
+        <div id="loading" class="flex flex-col items-center justify-center p-8">
+            <div class="loading-spinner mb-4"></div>
+            <p class="text-lg text-gray-600">جارٍ تحميل الخدمات...</p>
+        </div>
+
+        <div id="services-list" class="w-full">
+            <!-- سيتم تحميل الخدمات هنا بواسطة JavaScript -->
+        </div>
+
+        <div id="error-message" class="hidden bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded-lg relative w-full mt-6" role="alert">
+            <strong class="font-bold">خطأ:</strong>
+            <span class="block sm:inline" id="error-text">حدث خطأ أثناء تحميل الخدمات. يرجى المحاولة لاحقًا.</span>
+        </div>
+
+        <!-- زر لإغلاق الويب آب (مفيد في تليجرام) -->
+        <button id="close-button" class="mt-8 px-6 py-3 bg-blue-600 text-white font-semibold rounded-full shadow-lg hover:bg-blue-700 transition duration-300 focus:outline-none focus:ring-4 focus:ring-blue-300">
+            إغلاق
+        </button>
+    </div>
+
+    <script>
+        // هذا هو الجزء الذي يتفاعل مع Telegram WebApp API
+        // تأكد من تضمين سكريبت Telegram WebApp في البوت الخاص بك ليعمل هذا بشكل صحيح.
+        // مثال: https://core.telegram.org/bots/webapps#initializing-web-apps
+
+        const servicesList = document.getElementById('services-list');
+        const loadingIndicator = document.getElementById('loading');
+        const errorMessage = document.getElementById('error-message');
+        const errorText = document.getElementById('error-text');
+        const closeButton = document.getElementById('close-button');
+
+        // *************** هام جداً ***************
+        // استبدل هذا الرابط برابط الـ API الفعلي الذي سيعرضه بوتك.
+        // يجب أن يكون بوتك مستضافاً على خادم حقيقي ويوفر نقطة نهاية HTTP لجلب البيانات.
+        // مثال: "https://your-bot-hosting.com/api/services"
+        // عندما تقوم باستضافة البوت الخاص بك، ستحصل على عنوان URL عام له.
+        // على سبيل المثال، إذا استضفت بوتك على Heroku وكان اسمه "my-telegram-services-bot"،
+        // قد يكون رابط الـ API هو "https://my-telegram-services-bot.herokuapp.com/api/services"
+        const API_ENDPOINT = "http://localhost:5000/api/services"; // هذا رابط تجريبي، يجب تغييره بعد الاستضافة!
+        // ***************************************
+
+        /**
+         * دالة لجلب الخدمات من الواجهة الخلفية (البوت).
+         */
+        async function fetchServices() {
+            loadingIndicator.classList.remove('hidden');
+            servicesList.innerHTML = ''; // تفريغ القائمة قبل التحميل
+            errorMessage.classList.add('hidden'); // إخفاء رسالة الخطأ
+
+            try {
+                const response = await fetch(API_ENDPOINT);
+                if (!response.ok) {
+                    throw new Error(`خطأ في الشبكة: ${response.statusText}`);
+                }
+                const services = await response.json();
+                displayServices(services);
+            } catch (error) {
+                console.error("حدث خطأ أثناء جلب الخدمات:", error);
+                errorText.textContent = `حدث خطأ أثناء تحميل الخدمات: ${error.message}`;
+                errorMessage.classList.remove('hidden');
+            } finally {
+                loadingIndicator.classList.add('hidden');
+            }
+        }
+
+        /**
+         * دالة لعرض الخدمات في الواجهة.
+         * @param {Array<Object>} services - قائمة بالخدمات المراد عرضها.
+         */
+        function displayServices(services) {
+            if (services.length === 0) {
+                servicesList.innerHTML = '<p class="text-center text-gray-500 text-lg">لا توجد خدمات متاحة حاليًا.</p>';
+                return;
+            }
+
+            services.forEach(service => {
+                const serviceCard = document.createElement('div');
+                serviceCard.className = 'service-card flex items-center justify-between';
+                serviceCard.innerHTML = `
+                    <div>
+                        <h3 class="text-xl font-semibold text-gray-900">${service.name}</h3>
+                        <p class="text-gray-700 mt-1">${service.description}</p>
+                    </div>
+                    <span class="text-blue-600 font-bold text-lg">${service.price}</span>
+                `;
+                servicesList.appendChild(serviceCard);
+            });
+        }
+
+        // تهيئة Telegram WebApp (إذا كانت متاحة)
+        if (window.Telegram && window.Telegram.WebApp) {
+            window.Telegram.WebApp.ready(); // إخبار تليجرام بأن الويب آب جاهز
+            window.Telegram.WebApp.expand(); // محاولة توسيع الويب آب لملء الشاشة
+
+            // إعداد زر الإغلاق ليقوم بإغلاق الويب آب في تليجرام
+            closeButton.addEventListener('click', () => {
+                if (window.Telegram.WebApp) {
+                    window.Telegram.WebApp.close();
+                } else {
+                    console.warn('هذا الزر يعمل فقط داخل تطبيق تليجرام الويب.');
+                }
+            });
+
+        } else {
+            console.warn("Telegram WebApp object not found. Running in a regular browser.");
+        }
+
+        // جلب الخدمات عند تحميل الصفحة
+        document.addEventListener('DOMContentLoaded', fetchServices);
+    </script>
+</body>
+</html>
