@@ -5,6 +5,7 @@ from telegram.ext import Application, CommandHandler, ContextTypes
 from flask import Flask, jsonify
 import sqlite3
 import os
+
 # لا حاجة لـ 'threading' هنا لأن Render ستدير الـ web و الـ worker بشكل منفصل.
 
 # *************** هام جداً ***************
@@ -96,21 +97,10 @@ def api_services():
     logger.info(f"تم طلب خدمات API: تم إرجاع {len(services)} خدمة.")
     return jsonify(services)
 
-# --- وظيفة تشغيل البوت ---
-def run_telegram_bot():
-    """دالة تشغيل البوت."""
-    application = Application.builder().token(TOKEN).build()
-    application.add_handler(CommandHandler("start", start))
-    logger.info("بدء تشغيل بوت التليجرام...")
-    application.run_polling(allowed_updates=Update.ALL_TYPES)
-
-
 # ************************************************************
 # التغييرات الرئيسية هنا:
-# 1. سيتم استدعاء `init_db()` عند بدء تشغيل أي من العمليتين (web أو worker).
-# 2. عندما يتم تشغيل الملف كـ `worker` (أي عن طريق `python bot.py` من Procfile)،
-#    سيتم استدعاء `run_telegram_bot()` مباشرة.
-# 3. إزالة الكتلة `if __name__ == "__main__":` التي كانت مخصصة للاختبار المحلي فقط.
+# 1. إزالة دالة `run_telegram_bot()`.
+# 2. تشغيل البوت مباشرةً عند بدء عملية الـ Worker.
 # ************************************************************
 
 # تهيئة قاعدة البيانات عند بدء التشغيل
@@ -121,8 +111,9 @@ init_db()
 # (أي عندما يكون `python bot.py` هو أمر البدء).
 # يجب أن يتأكد هذا الجزء من أن البوت يبدأ بالعمل.
 try:
-    run_telegram_bot()
+    logger.info("بدء تشغيل بوت التليجرام...")
+    application = Application.builder().token(TOKEN).build()
+    application.add_handler(CommandHandler("start", start))
+    application.run_polling(allowed_updates=Update.ALL_TYPES)
 except Exception as e:
-    logger.error(f"حدث خطأ فادح في بدء تشغيل البوت: {e}")
-    # يمكن هنا إضافة المزيد من التفاصيل إذا لزم الأمر، مثل:
-    # logger.exception("خطأ في تشغيل البوت") # لطباعة traceback الكامل
+    logger.error(f"حدث خطأ فادح في بدء تشغيل البوت: {e}", exc_info=True) # exc_info=True لطباعة traceback الكامل
